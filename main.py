@@ -1,6 +1,7 @@
 import praw
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 reddit = praw.Reddit(
     client_id='bUAYwo47haEZlg',
@@ -8,20 +9,21 @@ reddit = praw.Reddit(
     user_agent='wsb_lossporn'
 )
 
-subreddit = 'wallstreetbets'
-loss_posts = reddit.subreddit(subreddit).search('flair:"loss"', sort='new', time_filter='month', limit=250)
+SUBREDDIT = 'wallstreetbets'
+LOSS_POSTS = reddit.subreddit(SUBREDDIT).search('flair:"loss"', sort='new', time_filter='month', limit=250)
 
 
 # Determines upvote threshold by identifying outliers below the lower whisker of a boxplot
-def get_upvote_threshold():
+def get_upvote_threshold(posts):
     posts_upvote_ratio = []
 
-    for post in loss_posts:
-        posts_upvote_ratio.append(post.upvote_ratio)
+    for post in posts:
+        # 2nd index of post object is the upvote ratio
+        posts_upvote_ratio.append(post[2])
 
     # creates boxplot if necessary
-    plt.boxplot(posts_upvote_ratio)
-    plt.show()
+    # plt.boxplot(posts_upvote_ratio)
+    # plt.show()
 
     # Determine Interquartile Range
     q1 = np.quantile(posts_upvote_ratio, 0.25)
@@ -35,14 +37,39 @@ def get_upvote_threshold():
     return lower_whisker
 
 
-get_upvote_threshold()
+# Accesses Reddit API and returns loss-porn posts [Filter: Sort = new, time = since_last_month, amount = 250]
+def get_posts():
+    posts = []
+
+    for post in LOSS_POSTS:
+        posts.append([
+            post.title,
+            post.score,
+            post.upvote_ratio,
+            post.num_comments,
+            post.selftext,
+            'https://www.reddit.com' + post.permalink
+        ])
+
+    threshold = get_upvote_threshold(posts)
+
+    # Remove posts from list if post is below the upvote threshold
+    for post in posts:
+        # 2nd index is the upvote_ratio
+        if post[2] < threshold:
+            posts.remove(post)
+
+    return posts
 
 
+def main():
+    posts = get_posts()
+    posts = pd.DataFrame(posts, columns=['title', 'score', 'upvote ratio', 'num_comments', 'body', 'url'])
+    print(posts)
 
 
-
-
-
+if __name__ == "__main__":
+    main()
 
 
 
