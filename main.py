@@ -1,4 +1,6 @@
 import praw
+import time
+from random import sample
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,24 +13,27 @@ reddit = praw.Reddit(
 )
 
 SUBREDDIT = 'wallstreetbets'
-LOSS_POSTS = reddit.subreddit(SUBREDDIT).search('flair:"loss"', sort='new', time_filter='month', limit=5)
+LOSS_POSTS = reddit.subreddit(SUBREDDIT).search('flair:"loss"', sort='new', time_filter='month', limit=250)
 
 
 # Determines upvote threshold by identifying outliers below the lower whisker of a boxplot
 def get_upvote_threshold(posts):
-    posts_upvote_ratio = []
+    post_upvote_percentage = []
 
     for post in posts:
-        # 2nd index of post object is the upvote ratio
-        posts_upvote_ratio.append(post[2])
+        # 2nd index of post object is the upvote %
+        post_upvote_percentage.append(post[2])
 
-    # creates boxplot if necessary
-    # plt.boxplot(posts_upvote_ratio)
-    # plt.show()
+    #  creates boxplot if necessary
+    plt.boxplot(post_upvote_percentage)
+    plt.suptitle('Distribution of Upvote Percentage of WSB Loss Porn Threads')
+    plt.ylabel('Upvote Percentage (%)')
+    plt.gca().axes.get_xaxis().set_visible(False)
+    plt.show()
 
     # Determine Interquartile Range
-    q1 = np.quantile(posts_upvote_ratio, 0.25)
-    q3 = np.quantile(posts_upvote_ratio, 0.75)
+    q1 = np.quantile(post_upvote_percentage, 0.25)
+    q3 = np.quantile(post_upvote_percentage, 0.75)
     iqr = q3 - q1
 
     # Formula for determining lower whisker
@@ -46,7 +51,7 @@ def get_posts():
         posts.append([
             post.title,
             post.score,
-            post.upvote_ratio,
+            post.upvote_ratio * 100,
             post.num_comments,
             post.selftext,
             'https://www.reddit.com' + post.permalink
@@ -60,6 +65,7 @@ def get_posts():
         if post[2] < threshold:
             posts.remove(post)
 
+    print(len(posts))
     return posts
 
 
@@ -70,33 +76,53 @@ def get_top_level_comments(url):
     comments = []
 
     for top_level_comment in post.comments:
-        comments.append([
-            top_level_comment.author,
-            top_level_comment.body,
-            top_level_comment.score,
-            top_level_comment.is_submitter,
-            'https://www.reddit.com' + top_level_comment.permalink
-        ])
+        if not top_level_comment.is_submitter:
+            # setdefault needed to avoid Key error if comment is not gilded
+            gilded = top_level_comment.gildings
+            gilded.setdefault('gid_1', "0")
+            gilded.setdefault('gid_2', "0")
+            gilded.setdefault('gid_3', "0")
+            comments.append([
+                top_level_comment.author,
+                top_level_comment.score,
+                top_level_comment.gildings['gid_1'],
+                top_level_comment.gildings['gid_2'],
+                top_level_comment.gildings['gid_3'],
+                'https://www.reddit.com' + top_level_comment.permalink,
+                top_level_comment.body,
+            ])
     return comments
 
 
 def main():
+    start_time = time.time()
     writer = pd.ExcelWriter('wsb_loss-porn.xlsx', engine='xlsxwriter')
+    num_post_to_select = 100
+
+    # Takes a random sample of all posts that are fetched
+    posts = sample(get_posts(), num_post_to_select)
+    print(len(posts))
 
     # Write Posts Dataframe to sheet one
-    posts = get_posts()
-    posts_pd = pd.DataFrame(posts, columns=['title', 'score', 'upvote ratio', 'num_comments', 'body', 'url'])
+    posts_pd = pd.DataFrame(posts, columns=['Title', 'Score', 'Upvote %', 'Comments', 'Body', 'url'])
     posts_pd.to_excel(writer, sheet_name='Sheet1')
 
     # Write top level comments of each post to a different worksheet
     for count, post in enumerate(posts):
         comments = get_top_level_comments(post[5])
-        comments_pd = pd.DataFrame(comments, columns=['author', 'body', 'score', 'is_submitter?', 'url'])
+        comments_pd = pd.DataFrame(comments, columns=['Author',
+                                                      'Score',
+                                                      'Silver',
+                                                      'Gold',
+                                                      'Plat',
+                                                      'url',
+                                                      'Text'
+                                                      ])
         # Sheet 0 does not exist and sheet 1 is reserved for the posts
         comments_pd.to_excel(writer, sheet_name='Sheet' + str(2 + count))
 
-    # Close the Pandas Excel writer and output the Excel file.
     writer.save()
+    print("--- %s seconds ---" % (time.time() - start_time))
 
 
 if __name__ == "__main__":
