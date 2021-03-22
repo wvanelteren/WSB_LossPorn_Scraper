@@ -51,7 +51,7 @@ def get_posts():
         posts.append([
             post.title,
             post.score,
-            post.upvote_ratio * 100,
+            post.upvote_ratio * 100,  # To return the percentage instead of the ratio
             post.num_comments,
             post.selftext,
             'https://www.reddit.com' + post.permalink
@@ -61,7 +61,7 @@ def get_posts():
 
     # Remove posts from list if post is below the upvote threshold
     for post in posts:
-        # 2nd index is the upvote_ratio
+        # 2nd index is the upvote percentage
         if post[2] < threshold:
             posts.remove(post)
 
@@ -69,6 +69,7 @@ def get_posts():
     return posts
 
 
+# Fetches top level comments of the posts fetched from get_posts()
 def get_top_level_comments(url):
     post = reddit.submission(url=url)
     post.comments.replace_more(limit=0)
@@ -79,7 +80,7 @@ def get_top_level_comments(url):
         if not top_level_comment.is_submitter:
             award_cost = 0
 
-            # Getting the cost of awards from the gilded dic
+            # Getting the cost of gildings from the gildings dic
             gilded = top_level_comment.gildings
             award_cost += 100 * gilded.get('gid_1', 0)  # Silver
             award_cost += 500 * gilded.get('gid_2', 0)  # Gold
@@ -96,21 +97,21 @@ def get_top_level_comments(url):
                 'https://www.reddit.com' + top_level_comment.permalink,
                 top_level_comment.body,
             ])
-            print(comments)
+
     return comments
 
 
 def main():
     start_time = time.time()
     writer = pd.ExcelWriter('wsb_loss-porn_tst.xlsx', engine='xlsxwriter')
-    num_post_to_select = 20
+    num_post_to_select = 100
 
     # Takes a random sample of all posts that are fetched
     posts = sample(get_posts(), num_post_to_select)
     print(len(posts))
 
     # Write Posts Dataframe to sheet one
-    posts_pd = pd.DataFrame(posts, columns=['Title', 'Score', 'Upvote %', 'Comments', 'Body', 'url'])
+    posts_pd = pd.DataFrame(posts, columns=['Title', 'Score', 'Upvote_%', 'Comments', 'Body', 'url'])
     posts_pd.to_excel(writer, sheet_name='Sheet1')
 
     # Write top level comments of each post to a different worksheet
@@ -118,7 +119,7 @@ def main():
         comments = get_top_level_comments(post[5])
         comments_pd = pd.DataFrame(comments, columns=['Author',
                                                       'Score',
-                                                      'Award score',
+                                                      'Award_Score',
                                                       'url',
                                                       'Text'
                                                       ])
