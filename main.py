@@ -77,27 +77,33 @@ def get_top_level_comments(url):
 
     for top_level_comment in post.comments:
         if not top_level_comment.is_submitter:
-            # setdefault needed to avoid Key error if comment is not gilded
+            award_cost = 0
+
+            # Getting the cost of awards from the gilded dic
             gilded = top_level_comment.gildings
-            gilded.setdefault('gid_1', "0")
-            gilded.setdefault('gid_2', "0")
-            gilded.setdefault('gid_3', "0")
+            award_cost += 100 * gilded.get('gid_1', 0)  # Silver
+            award_cost += 500 * gilded.get('gid_2', 0)  # Gold
+            award_cost += 1800 * gilded.get('gid_3', 0)  # Platinum
+
+            # Getting the cost of awards from the awards dic
+            for award in top_level_comment.all_awardings:
+                award_cost += award.get('coin_price', 0)
+
             comments.append([
                 top_level_comment.author,
                 top_level_comment.score,
-                top_level_comment.gildings['gid_1'],
-                top_level_comment.gildings['gid_2'],
-                top_level_comment.gildings['gid_3'],
+                award_cost,
                 'https://www.reddit.com' + top_level_comment.permalink,
                 top_level_comment.body,
             ])
+            print(comments)
     return comments
 
 
 def main():
     start_time = time.time()
-    writer = pd.ExcelWriter('wsb_loss-porn.xlsx', engine='xlsxwriter')
-    num_post_to_select = 100
+    writer = pd.ExcelWriter('wsb_loss-porn_tst.xlsx', engine='xlsxwriter')
+    num_post_to_select = 20
 
     # Takes a random sample of all posts that are fetched
     posts = sample(get_posts(), num_post_to_select)
@@ -112,9 +118,7 @@ def main():
         comments = get_top_level_comments(post[5])
         comments_pd = pd.DataFrame(comments, columns=['Author',
                                                       'Score',
-                                                      'Silver',
-                                                      'Gold',
-                                                      'Plat',
+                                                      'Award score',
                                                       'url',
                                                       'Text'
                                                       ])
