@@ -1,17 +1,21 @@
-import praw
+import os
 import time
 from random import sample
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xlsxwriter
+import praw
+from dotenv import load_dotenv
+
+# Loads praw.env which stores reddit API key
+load_dotenv()
 
 reddit = praw.Reddit(
-    client_id='bUAYwo47haEZlg',
-    client_secret='JRVi-XO2urAJAg41YlsEMgsLcrEVeA',
+    client_id=os.getenv('CLIENT_ID'),
+    client_secret=os.getenv('SECRET'),
     user_agent='wsb_lossporn'
 )
-
 SUBREDDIT = 'wallstreetbets'
 LOSS_POSTS = reddit.subreddit(SUBREDDIT).search('flair:"loss"', sort='new', time_filter='month', limit=250)
 
